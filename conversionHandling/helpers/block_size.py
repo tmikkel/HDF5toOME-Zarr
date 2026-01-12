@@ -1,5 +1,5 @@
     
-def block_size_calc(
+def block_size(
         shape: tuple[int, int, int],
         target_chunks: tuple[int, int, int],
         safety_factor: float,

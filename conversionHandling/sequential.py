@@ -5,9 +5,13 @@ from datetime import timedelta
 import numpy as np
 from numcodecs import Blosc
 from pathlib import Path
-from conversionHandling.helpers.block_size import block_size_calc
-from conversionHandling.helpers.system import SystemInfo
-from conversionHandling.helpers.pyramid_write import pyramid_write
+from conversionHandling.helpers.sysinfo import SystemInfo
+from conversionHandling.helpers import (
+    block_size,
+    pyramid_write,
+    n_pyramid_levels,
+    write_metadata
+)
 
 def sequential_conversion(
     h5_path: Path,
@@ -39,7 +43,7 @@ def sequential_conversion(
 
         max_mem_gb = system.available_ram_bytes
 
-        block_shape = block_size_calc(
+        block_shape = block_size(
             shape,
             target_chunks,
             safety_factor,
@@ -112,10 +116,27 @@ def sequential_conversion(
         print(f"  {timedelta(seconds=int(elapsed_level0))}")
         print(f"  Throughput: {throughput:.2f} GB/s")
 
+        pyramid_levels = n_pyramid_levels(
+            data_size_mb,
+            target_top_level_mb=10,
+            downsample_factor=2
+            )
+
+        print("Stage 2: Write Multi-Resolution Pyramid from level 0")
+
         pyramid_write(
             compression_level,
             output_path,
             target_chunks,
             data_size_mb,
+            pyramid_levels,
             downsample_factor=2,
+        )
+
+        print("Stage 3: Write OME-Zarr Metadata")
+
+        write_metadata(
+                output_path,
+                pyramid_levels,
+                downsample_factor=2
         )

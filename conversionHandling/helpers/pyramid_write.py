@@ -6,24 +6,14 @@ from datetime import timedelta
 from pathlib import Path
 import time
 import numpy as np
-from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
 
 def pyramid_write(
         compression_level: int,
         output_path: Path,
         target_chunks: tuple[int, int, int],
-        data_size_mb: float,
+        pyramid_levels: int,
         downsample_factor: int
-
 ):
-    
-    pyramid_levels = n_pyramid_levels(
-        data_size_mb,
-        target_top_level_mb=10,
-        downsample_factor=2
-    )
-
-    print("Stage 2: Write Multi-Resolution Pyramid from level 0")
 
     # Configure dask for memory constraints
     dask.config.set({

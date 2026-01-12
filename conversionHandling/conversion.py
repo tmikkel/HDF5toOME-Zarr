@@ -1,9 +1,8 @@
 from pathlib import Path
 from conversionHandling.parallel import parallel_conversion
 from conversionHandling.sequential import sequential_conversion
-from conversionHandling.helpers.system import detect_system
+from conversionHandling.helpers.sysinfo import detect_system
 
-system = detect_system()
 
 def convert_hdf5_to_omezarr(
     h5_path: Path,
@@ -14,6 +13,8 @@ def convert_hdf5_to_omezarr(
     compression_level: int,
     
 ):
+    system = detect_system()
+    
     base_name = h5_path.stem 
     zarr_path = output_dir / f"{base_name}.ome.zarr"
     i = 1

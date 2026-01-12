@@ -8,7 +8,12 @@ from dask.distributed import Client, LocalCluster
 from dask.diagnostics import ProgressBar
 import dask.array as da
 from pathlib import Path
-from conversionHandling.helpers.system import SystemInfo
+from conversionHandling.helpers.sysinfo import SystemInfo
+from conversionHandling.helpers import (
+    pyramid_write,
+    n_pyramid_levels,
+    write_metadata
+)
 
 def parallel_conversion(
     h5_path: Path,
@@ -43,6 +48,7 @@ def parallel_conversion(
     h5 = h5py.File(h5_path, "r")
     dset = h5[dataset_path]
     shape = dset.shape
+    data_size_mb = dset.nbytes / (1024**2)
 
     print(f"Dataset shape: {shape}, dtype={dset.dtype}")
 
@@ -96,3 +102,28 @@ def parallel_conversion(
     h5.close()
     client.close()
     cluster.close()
+
+    pyramid_levels = n_pyramid_levels(
+        data_size_mb,
+        target_top_level_mb=10,
+        downsample_factor=2
+        )
+
+    print("Stage 2: Write Multi-Resolution Pyramid from level 0")
+
+    pyramid_write(
+        compression_level,
+        output_path,
+        target_chunks,
+        data_size_mb,
+        pyramid_levels,
+        downsample_factor=2,
+    )
+
+    print("Stage 3: Write OME-Zarr Metadata")
+
+    write_metadata(
+            output_path,
+            pyramid_levels,
+            downsample_factor=2
+    )
