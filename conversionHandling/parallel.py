@@ -1,0 +1,98 @@
+import h5py
+import zarr
+import numpy as np
+import time
+from datetime import timedelta
+from numcodecs import Blosc
+from dask.distributed import Client, LocalCluster
+from dask.diagnostics import ProgressBar
+import dask.array as da
+from pathlib import Path
+from helpers.system import SystemInfo
+
+def parallel_conversion(
+    h5_path: Path,
+    output_path: Path,
+    target_chunks: tuple[int, int, int],
+    safety_factor: float,
+    system: SystemInfo,
+    compression_level: int,
+    dataset_path = 'exchange/data',
+):
+    
+    n_workers = 4
+    threads_per_worker=1
+    memory_limit = (system.available_ram_bytes * safety_factor)/n_workers
+
+    # =========================
+    # CLUSTER
+    # =========================
+    cluster = LocalCluster(
+        n_workers=n_workers,
+        threads_per_worker=threads_per_worker,
+        processes=True,
+        memory_limit=memory_limit,
+        dashboard_address=":8787",
+    )
+    client = Client(cluster)
+    print(f"✓ Dask dashboard: {client.dashboard_link}")
+
+    # =========================
+    # OPEN HDF5
+    # =========================
+    h5 = h5py.File(h5_path, "r")
+    dset = h5[dataset_path]
+    shape = dset.shape
+
+    print(f"Dataset shape: {shape}, dtype={dset.dtype}")
+
+    read_chunks = (512, 512, 512)
+
+    print(read_chunks)
+
+    # =========================
+    # DASK ARRAY
+    # =========================
+    darr = da.from_array(
+        dset,
+        chunks=read_chunks,
+        lock=True  # h5py is not thread-safe
+    )
+
+    # =========================
+    # RECHUNK (single stage)
+    # =========================
+    print("Rechunking...")
+    darr = darr.rechunk(target_chunks)
+
+    # =========================
+    # WRITE ZARR
+    # =========================
+    compressor = Blosc(
+        cname="zstd",
+        clevel=compression_level,
+        shuffle=Blosc.BITSHUFFLE
+    )
+
+    start = time.time()
+    with ProgressBar():
+        darr.to_zarr(
+            output_path,
+            component="0",
+            compressor=compressor,
+            overwrite=True,
+            dimension_separator="/"
+        )
+
+    elapsed = time.time() - start
+    total_gb = np.prod(dset.shape) * dset.dtype.itemsize / 1e9
+
+    print(f"\n✓ Done in {elapsed:.1f}s")
+    print(f"✓ Throughput: {total_gb / elapsed:.2f} GB/s")
+
+    # =========================
+    # CLEANUP
+    # =========================
+    h5.close()
+    client.close()
+    cluster.close()
