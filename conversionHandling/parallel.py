@@ -8,7 +8,7 @@ from dask.distributed import Client, LocalCluster
 from dask.diagnostics import ProgressBar
 import dask.array as da
 from pathlib import Path
-from helpers.system import SystemInfo
+from conversionHandling.helpers.system import SystemInfo
 
 def parallel_conversion(
     h5_path: Path,

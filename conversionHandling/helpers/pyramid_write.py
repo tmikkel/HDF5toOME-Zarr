@@ -6,7 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 import time
 import numpy as np
-from pyramid_levels import n_pyramid_levels
+from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
 
 def pyramid_write(
         compression_level: int,

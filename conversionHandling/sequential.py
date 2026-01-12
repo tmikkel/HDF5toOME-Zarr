@@ -5,9 +5,9 @@ from datetime import timedelta
 import numpy as np
 from numcodecs import Blosc
 from pathlib import Path
-from helpers.block_size import block_size_calc
-from helpers.system import SystemInfo
-from helpers.pyramid_write import pyramid_write
+from conversionHandling.helpers.block_size import block_size_calc
+from conversionHandling.helpers.system import SystemInfo
+from conversionHandling.helpers.pyramid_write import pyramid_write
 
 def sequential_conversion(
     h5_path: Path,

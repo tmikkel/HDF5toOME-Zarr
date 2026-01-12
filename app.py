@@ -142,7 +142,7 @@ class ConverterGUI(QWidget):
             convert_hdf5_to_omezarr(
                 self.h5_path,
                 self.out_path,
-                chunks=chunks,
+                target_chunks=chunks,
                 mode=mode,
                 safety_factor=safety_factor,
                 compression_level=compression_level
