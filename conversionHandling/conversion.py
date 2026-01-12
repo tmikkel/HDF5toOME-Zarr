@@ -3,6 +3,7 @@ from conversionHandling.parallel import parallel_conversion
 from conversionHandling.sequential import sequential_conversion
 from conversionHandling.helpers.sysinfo import detect_system
 
+system = detect_system()
 
 def convert_hdf5_to_omezarr(
     h5_path: Path,
@@ -13,7 +14,6 @@ def convert_hdf5_to_omezarr(
     compression_level: int,
     
 ):
-    system = detect_system()
     
     base_name = h5_path.stem 
     zarr_path = output_dir / f"{base_name}.ome.zarr"
@@ -21,8 +21,9 @@ def convert_hdf5_to_omezarr(
     while zarr_path.exists():
         zarr_path = output_dir / f"{base_name}_{i}.ome.zarr"
         i += 1
-
-    if mode == "sequential":
+    
+    print(f"DEBUG: mode='{mode}'")
+    if mode.lower() == "sequential":
         sequential_conversion(h5_path, 
                               zarr_path, 
                               target_chunks,

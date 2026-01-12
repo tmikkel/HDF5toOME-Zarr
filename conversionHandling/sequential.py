@@ -6,12 +6,10 @@ import numpy as np
 from numcodecs import Blosc
 from pathlib import Path
 from conversionHandling.helpers.sysinfo import SystemInfo
-from conversionHandling.helpers import (
-    block_size,
-    pyramid_write,
-    n_pyramid_levels,
-    write_metadata
-)
+from conversionHandling.helpers.pyramid_write import pyramid_write
+from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
+from conversionHandling.helpers.write_metadata import write_metadata
+from conversionHandling.helpers.block_size import block_size
 
 def sequential_conversion(
     h5_path: Path,
@@ -128,7 +126,6 @@ def sequential_conversion(
             compression_level,
             output_path,
             target_chunks,
-            data_size_mb,
             pyramid_levels,
             downsample_factor=2,
         )

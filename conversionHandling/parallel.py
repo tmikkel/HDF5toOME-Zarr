@@ -9,11 +9,9 @@ from dask.diagnostics import ProgressBar
 import dask.array as da
 from pathlib import Path
 from conversionHandling.helpers.sysinfo import SystemInfo
-from conversionHandling.helpers import (
-    pyramid_write,
-    n_pyramid_levels,
-    write_metadata
-)
+from conversionHandling.helpers.pyramid_write import pyramid_write
+from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
+from conversionHandling.helpers.write_metadata import write_metadata
 
 def parallel_conversion(
     h5_path: Path,
@@ -115,7 +113,6 @@ def parallel_conversion(
         compression_level,
         output_path,
         target_chunks,
-        data_size_mb,
         pyramid_levels,
         downsample_factor=2,
     )
