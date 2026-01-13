@@ -1,10 +1,11 @@
-    
+from conversionHandling.helpers.sysinfo import SystemInfo
+
 def block_size(
         shape: tuple[int, int, int],
         target_chunks: tuple[int, int, int],
         safety_factor: float,
         dtype_size: int,
-        max_mem_gb: float
+        system: SystemInfo
 
 ):
     """ Calculate optimal block size that:
@@ -17,7 +18,7 @@ def block_size(
     block_z, block_y, block_x = target_chunks
         
     # Available memory given safety factor
-    available_bytes = max_mem_gb * 1e9 * safety_factor
+    available_bytes = system.available_ram_bytes * safety_factor
         
     # Calculate maximum amount of Z-planes that fit in memory
     bytes_per_z_plane = y * x * dtype_size
@@ -48,6 +49,8 @@ def block_size(
         
     # Calculate actual memory usage
     actual_gb = block_z * y * x * dtype_size / 1e9
+
+    max_mem_gb = system.available_ram_gb
         
     print(f"\n{'='*60}")
     print("Optimal Block Size Calculation")

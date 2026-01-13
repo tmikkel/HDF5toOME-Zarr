@@ -39,14 +39,13 @@ def sequential_conversion(
         print(f"  Size: {data_size_gb:.2f} GB")
         print(f"  HDF5 chunks: {h5_chunks if h5_chunks else 'Contiguous'}")
 
-        max_mem_gb = system.available_ram_bytes
 
         block_shape = block_size(
             shape,
             target_chunks,
             safety_factor,
             dtype_size,
-            max_mem_gb
+            system
         )
 
         block_z, block_y, block_x = block_shape

@@ -12,6 +12,8 @@ from conversionHandling.helpers.sysinfo import SystemInfo
 from conversionHandling.helpers.pyramid_write import pyramid_write
 from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
 from conversionHandling.helpers.write_metadata import write_metadata
+from conversionHandling.helpers.workers import choose_n_workers
+from conversionHandling.helpers.storage import StorageType
 
 def parallel_conversion(
     h5_path: Path,
@@ -20,13 +22,33 @@ def parallel_conversion(
     safety_factor: float,
     system: SystemInfo,
     compression_level: int,
+    storage: StorageType,
     dataset_path = 'exchange/data',
 ):
-    
-    n_workers = 4
+
+    # =========================
+    # OPEN HDF5
+    # =========================
+    h5 = h5py.File(h5_path, "r")
+    dset = h5[dataset_path]
+    read_chunks = dset.chunks
+    shape = dset.shape
+    data_size_mb = dset.nbytes / (1024**2)
+
+    print(f"Dataset shape: {shape}, dtype={dset.dtype}")
+
+    print(read_chunks)
+    read_chunks_bytes = np.prod() * dset.dtype.itemsize
+
+    n_workers = choose_n_workers(      
+        system,
+        storage,
+        read_chunks_bytes,
+        safety_factor 
+        )
+  
     threads_per_worker=1
     memory_limit = (system.available_ram_bytes * safety_factor)/n_workers
-
     # =========================
     # CLUSTER
     # =========================
@@ -39,20 +61,6 @@ def parallel_conversion(
     )
     client = Client(cluster)
     print(f"✓ Dask dashboard: {client.dashboard_link}")
-
-    # =========================
-    # OPEN HDF5
-    # =========================
-    h5 = h5py.File(h5_path, "r")
-    dset = h5[dataset_path]
-    shape = dset.shape
-    data_size_mb = dset.nbytes / (1024**2)
-
-    print(f"Dataset shape: {shape}, dtype={dset.dtype}")
-
-    read_chunks = (512, 512, 512)
-
-    print(read_chunks)
 
     # =========================
     # DASK ARRAY

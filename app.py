@@ -5,10 +5,12 @@ import time
 from datetime import timedelta
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog,
-    QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QMessageBox
+    QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QMessageBox, 
+    QDoubleSpinBox, QSpinBox
 )
 from PySide6.QtCore import Qt
 from conversionHandling.conversion import convert_hdf5_to_omezarr
+from conversionHandling.helpers.storage import StorageType
 
 # -------------------- helpers --------------------
 
@@ -50,6 +52,25 @@ class ConverterGUI(QWidget):
         self.chunk_feedback = QLabel("")
         self.chunk_feedback.setStyleSheet("color: orange")
 
+        self.safety_factor_spin = QDoubleSpinBox()
+        self.safety_factor_spin.setRange(0.1, 0.95)
+        self.safety_factor_spin.setSingleStep(0.05)
+        self.safety_factor_spin.setDecimals(2)
+        self.safety_factor_spin.setValue(0.75)
+        self.safety_factor_spin.setSuffix(" × RAM")
+
+        self.compression_spin = QSpinBox()
+        self.compression_spin.setRange(1, 22)
+        self.compression_spin.setValue(3)
+        self.compression_spin.setToolTip("Zstd compression level (1 = fast, 22 = max)")
+
+        self.storage_select = QComboBox()
+        self.storage_select.addItem("HDD", StorageType.HDD)
+        self.storage_select.addItem("SATA SSD", StorageType.SATA_SSD)
+        self.storage_select.addItem("NVMe SSD", StorageType.NVME)
+
+        self.storage_select.setCurrentIndex(2)  # default = NVMe SSD
+
         self.mode_select = QComboBox()
         self.mode_select.addItems(["Sequential", "Parallel (Dask)"])
 
@@ -73,6 +94,18 @@ class ConverterGUI(QWidget):
         layout.addWidget(self.chunk_input)
         layout.addWidget(self.chunk_feedback)
         self.chunk_input.textChanged.connect(self.check_chunks)
+
+        layout.addSpacing(10)
+        layout.addWidget(QLabel("Storage type"))
+        layout.addWidget(self.storage_select)
+
+        layout.addSpacing(10)
+        layout.addWidget(QLabel("Safety factor"))
+        layout.addWidget(self.safety_factor_spin)
+
+        layout.addSpacing(10)
+        layout.addWidget(QLabel("Compression level (zstd)"))
+        layout.addWidget(self.compression_spin)
 
         layout.addSpacing(10)
         layout.addWidget(QLabel("Write mode"))
@@ -132,9 +165,6 @@ class ConverterGUI(QWidget):
             return
 
         mode = self.mode_select.currentText()
-
-        safety_factor=0.75
-        compression_level=3
         
         # ---- run conversion ----
         try:
@@ -144,8 +174,9 @@ class ConverterGUI(QWidget):
                 self.out_path,
                 target_chunks=chunks,
                 mode=mode,
-                safety_factor=safety_factor,
-                compression_level=compression_level
+                safety_factor = self.safety_factor_spin.value(),
+                compression_level = self.compression_spin.value(),
+                storage = self.storage_select.currentData()  # StorageType enum
             )
             total_seconds = time.time() - start_time
         except Exception as e:
@@ -153,7 +184,6 @@ class ConverterGUI(QWidget):
             return
 
         msg = (
-            f"Input: {self.h5_path}\n"
             f"Output folder: {self.out_path}\n"
             f"Chunks: {chunks}\n"
             f"Mode: {mode}\n\n"
@@ -161,12 +191,6 @@ class ConverterGUI(QWidget):
         )
 
         QMessageBox.information(self, "Conversion", msg)
-
-        # Example integration point:
-        # if mode == "Sequential":
-        #     convert_sequential(self.h5_path, self.out_path, chunks)
-        # else:
-        #     convert_parallel(self.h5_path, self.out_path, chunks)
 
 
 # -------------------- main --------------------
