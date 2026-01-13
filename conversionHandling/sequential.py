@@ -10,6 +10,7 @@ from conversionHandling.helpers.pyramid_write import pyramid_write
 from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
 from conversionHandling.helpers.write_metadata import write_metadata
 from conversionHandling.helpers.block_size import block_size
+from conversionHandling.helpers.storage import StorageType
 
 def sequential_conversion(
     h5_path: Path,
@@ -18,8 +19,10 @@ def sequential_conversion(
     safety_factor: float,
     system: SystemInfo,
     compression_level: int,
+    storage: StorageType,
     dataset_path = 'exchange/data',
 ):
+    print("DEBUG: entering sequential_conversion")
     # Inspect HDF5 file
     with h5py.File(h5_path, 'r') as f:
         if dataset_path not in f:

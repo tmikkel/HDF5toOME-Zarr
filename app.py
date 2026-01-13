@@ -72,7 +72,7 @@ class ConverterGUI(QWidget):
         self.storage_select.setCurrentIndex(2)  # default = NVMe SSD
 
         self.mode_select = QComboBox()
-        self.mode_select.addItems(["Sequential", "Parallel (Dask)"])
+        self.mode_select.addItems(["Sequential", "Hybrid", "Parallel"])
 
         self.run_button = QPushButton("Convert")
         self.run_button.clicked.connect(self.run_conversion)

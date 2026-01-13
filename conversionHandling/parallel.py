@@ -13,6 +13,7 @@ from conversionHandling.helpers.pyramid_write import pyramid_write
 from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
 from conversionHandling.helpers.write_metadata import write_metadata
 from conversionHandling.helpers.workers import choose_n_workers
+from conversionHandling.helpers.compute_read_chunks import compute_read_chunks
 from conversionHandling.helpers.storage import StorageType
 
 def parallel_conversion(
@@ -25,20 +26,33 @@ def parallel_conversion(
     storage: StorageType,
     dataset_path = 'exchange/data',
 ):
+    print("DEBUG: entering parallel_conversion")
 
     # =========================
     # OPEN HDF5
     # =========================
     h5 = h5py.File(h5_path, "r")
     dset = h5[dataset_path]
-    read_chunks = dset.chunks
     shape = dset.shape
     data_size_mb = dset.nbytes / (1024**2)
+    dtype_size = dset.dtype.itemsize
 
     print(f"Dataset shape: {shape}, dtype={dset.dtype}")
 
-    print(read_chunks)
-    read_chunks_bytes = np.prod() * dset.dtype.itemsize
+    if dset.chunks:
+        read_chunks = dset.chunks
+    else:
+        read_chunks = compute_read_chunks(
+            system,
+            target_chunks,
+            dtype_size,
+            safety_factor,
+            multiple = 8,
+            min_chunks_in_memory = 8
+        )
+
+    print(f"Read chunks: {read_chunks}")
+    read_chunks_bytes = np.prod(read_chunks) * dtype_size
 
     n_workers = choose_n_workers(      
         system,
@@ -46,6 +60,8 @@ def parallel_conversion(
         read_chunks_bytes,
         safety_factor 
         )
+    
+    print(f"Number of Workers: {n_workers}")
   
     threads_per_worker=1
     memory_limit = (system.available_ram_bytes * safety_factor)/n_workers
