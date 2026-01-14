@@ -25,23 +25,11 @@ def sequential_conversion(
     print("DEBUG: entering sequential_conversion")
     # Inspect HDF5 file
     with h5py.File(h5_path, 'r') as f:
-        if dataset_path not in f:
-            print(f"  ERROR: Dataset '{dataset_path}' not found")
-            print(f"  Available paths: {list(f.keys())}")
-        
         dataset = f[dataset_path]
         shape = dataset.shape
         dtype = dataset.dtype
-        h5_chunks = dataset.chunks
-        data_size_gb = dataset.nbytes / (1024**3)
         data_size_mb = dataset.nbytes / (1024**2)
         dtype_size = dtype.itemsize
-        
-        print(f"  Shape: {shape}")
-        print(f"  Dtype: {dtype}")
-        print(f"  Size: {data_size_gb:.2f} GB")
-        print(f"  HDF5 chunks: {h5_chunks if h5_chunks else 'Contiguous'}")
-
 
         block_shape = block_size(
             shape,

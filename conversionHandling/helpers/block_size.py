@@ -5,20 +5,22 @@ def block_size(
         target_chunks: tuple[int, int, int],
         safety_factor: float,
         dtype_size: int,
-        system: SystemInfo
+        system: SystemInfo,
+        mem_divider: int = 1
 
 ):
-    """ Calculate optimal block size that:
-        1. Maximizes memory usage (fewer HDF5 reads)
-        2. Aligns with target chunks (efficient zarr writes)
-        3. Stays within memory budget
+    """ 
+        Calculates largest block size that:
+            1. Maximizes memory usage (fewer HDF5 reads)
+            2. Aligns with target chunks
+            3. Stays within memory budget
     """
         
     z, y, x = shape
     block_z, block_y, block_x = target_chunks
         
     # Available memory given safety factor
-    available_bytes = system.available_ram_bytes * safety_factor
+    available_bytes = system.available_ram_bytes * safety_factor / mem_divider
         
     # Calculate maximum amount of Z-planes that fit in memory
     bytes_per_z_plane = y * x * dtype_size
@@ -59,5 +61,5 @@ def block_size(
     print(f"Available for block: {available_bytes/1e9:.2f} GB")
     print(f"Actual block size: {actual_gb:.2f} GB")
     print(f"{'='*60}")
-    print(block_shape)
+    print(f"Read chunks: {block_shape}")
     return block_shape

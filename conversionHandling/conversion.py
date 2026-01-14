@@ -25,9 +25,13 @@ def convert_hdf5_to_omezarr(
         store_path = output_dir / f"{base_name}_{i}.ome.zarr"
         i += 1
     
+    dataset_path = "exchange/data"
+
     with h5py.File(h5_path, "r") as f:
-        dset = f["exchange/data"]
-        source_chunks = dset.chunks
+        if dataset_path not in f:
+            print(f"  ERROR: Dataset '{dataset_path}' not found")
+            print(f"  Available paths: {list(f.keys())}")
+        source_chunks = dataset_path.chunks
 
     print(f"Mode sanity check: {mode}")
 

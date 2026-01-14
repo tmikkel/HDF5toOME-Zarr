@@ -63,20 +63,18 @@ def parallel_conversion(
     
     print(f"Number of Workers: {n_workers}")
   
-    threads_per_worker=1
     memory_limit = (system.available_ram_bytes * safety_factor)/n_workers
     # =========================
     # CLUSTER
     # =========================
     cluster = LocalCluster(
         n_workers=n_workers,
-        threads_per_worker=threads_per_worker,
+        threads_per_worker=1,
         processes=True,
-        memory_limit=memory_limit,
-        dashboard_address=":8787",
+        memory_limit=memory_limit
     )
     client = Client(cluster)
-    print(f"✓ Dask dashboard: {client.dashboard_link}")
+    print(f"Dask dashboard: {client.dashboard_link}")
 
     # =========================
     # DASK ARRAY
