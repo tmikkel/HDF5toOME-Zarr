@@ -6,10 +6,11 @@ from datetime import timedelta
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog,
     QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QMessageBox, 
-    QDoubleSpinBox, QSpinBox
+    QDoubleSpinBox, QSpinBox, QCheckBox
 )
 from PySide6.QtCore import Qt
 from conversionHandling.conversion import convert_hdf5_to_omezarr
+from conversionHandling.helpers.visualize import open_in_napari
 from conversionHandling.helpers.storage import StorageType
 
 # -------------------- helpers --------------------
@@ -77,6 +78,9 @@ class ConverterGUI(QWidget):
         self.run_button = QPushButton("Convert")
         self.run_button.clicked.connect(self.run_conversion)
 
+        self.visualize_checkbox = QCheckBox("Open result in viewer")
+        self.visualize_checkbox.setChecked(False)
+
         # ---- layouts ----
         layout = QVBoxLayout()
 
@@ -110,6 +114,9 @@ class ConverterGUI(QWidget):
         layout.addSpacing(10)
         layout.addWidget(QLabel("Write mode"))
         layout.addWidget(self.mode_select)
+
+        layout.addSpacing(10)
+        layout.addWidget(self.visualize_checkbox)
 
         layout.addSpacing(20)
         layout.addWidget(self.run_button, alignment=Qt.AlignCenter)
@@ -169,19 +176,30 @@ class ConverterGUI(QWidget):
         # ---- run conversion ----
         try:
             start_time = time.time()
-            convert_hdf5_to_omezarr(
+            store_path = convert_hdf5_to_omezarr(
                 self.h5_path,
                 self.out_path,
                 target_chunks=chunks,
                 mode=mode,
                 safety_factor = self.safety_factor_spin.value(),
                 compression_level = self.compression_spin.value(),
-                storage = self.storage_select.currentData()  # StorageType enum
+                storage = self.storage_select.currentData()
             )
             total_seconds = time.time() - start_time
         except Exception as e:
             QMessageBox.critical(self, "Conversion failed", str(e))
             return
+        
+        # ---- visualization ----
+        if self.visualize_checkbox.isChecked():
+            try:
+                open_in_napari(store_path)
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Visualization failed",
+                    str(e)
+                )
 
         msg = (
             f"Output folder: {self.out_path}\n"

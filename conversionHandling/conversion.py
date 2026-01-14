@@ -53,3 +53,5 @@ def convert_hdf5_to_omezarr(
         compression_level, 
         storage
         )
+    
+    return store_path
