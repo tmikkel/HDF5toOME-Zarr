@@ -31,7 +31,8 @@ def convert_hdf5_to_omezarr(
         if dataset_path not in f:
             print(f"  ERROR: Dataset '{dataset_path}' not found")
             print(f"  Available paths: {list(f.keys())}")
-        source_chunks = dataset_path.chunks
+            
+        source_chunks = f[dataset_path].chunks
 
     print(f"Mode sanity check: {mode}")
 

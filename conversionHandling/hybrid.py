@@ -43,7 +43,7 @@ def hybrid_conversion(
                 safety_factor,
                 dtype_size,
                 system,
-                mem_divider=4
+                mem_divider=16
             )
 
             block_z, block_y, block_x = block_shape
