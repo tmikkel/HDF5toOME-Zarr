@@ -151,13 +151,21 @@ class ConverterGUI(QWidget):
         layout.addWidget(QLabel("Storage type"))
         layout.addWidget(self.storage_select)
 
-        layout.addSpacing(10)
-        layout.addWidget(QLabel("Safety factor"))
-        layout.addWidget(self.safety_factor_spin)
+        safety_compression_hstack = QHBoxLayout()
+        safety_vstack = QVBoxLayout()
+        safety_vstack.addWidget(QLabel("Safety factor"))
+        safety_vstack.addWidget(self.safety_factor_spin)
+
+        compression_vstack = QVBoxLayout()
+        compression_vstack.addWidget(QLabel("Compression level (zstd)"))
+        compression_vstack.addWidget(self.compression_spin)
+
+        safety_compression_hstack.addLayout(safety_vstack)
+        safety_compression_hstack.addSpacing(10)
+        safety_compression_hstack.addLayout(compression_vstack)
 
         layout.addSpacing(10)
-        layout.addWidget(QLabel("Compression level (zstd)"))
-        layout.addWidget(self.compression_spin)
+        layout.addLayout(safety_compression_hstack)
 
         layout.addSpacing(10)
         layout.addWidget(QLabel("Write mode"))
@@ -172,7 +180,7 @@ class ConverterGUI(QWidget):
         layout.addSpacing(10)
         layout.addWidget(self.progress_bar)
         layout.addWidget(self.progress_label)
-
+        
         self.setLayout(layout)
 
         self.h5_path: Path | None = None
