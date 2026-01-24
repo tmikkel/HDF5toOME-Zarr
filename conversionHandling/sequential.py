@@ -20,7 +20,8 @@ def sequential_conversion(
     system: SystemInfo,
     compression_level: int,
     storage: StorageType,
-    dataset_path = 'exchange/data',
+    progress_callback=None,
+    dataset_path = 'exchange/data'
 ):
     print("DEBUG: entering sequential_conversion")
     # Inspect HDF5 file
@@ -65,7 +66,8 @@ def sequential_conversion(
         # Calculate total blocks
         total_blocks = (
             ((z_total + block_z - 1) // block_z) *
-            ((y_total + block_y - 1) // block_y)
+            ((y_total + block_y - 1) // block_y) *
+            ((x_total + block_x - 1) // block_x)
         )
             
         print(f"Processing {total_blocks} blocks...")
@@ -76,27 +78,44 @@ def sequential_conversion(
                 
             for y_start in range(0, y_total, block_y):
                 y_end = min(y_start + block_y, y_total)
+
+                for x_start in range(0, x_total, block_x):
+                    x_end = min(x_start + block_x, x_total)
                         
-                block_count += 1
-                        
-                # Read block from HDF5
-                block = dataset[z_start:z_end, y_start:y_end, :]
-                        
-                # Write to zarr (zarr will internally chunk to target_chunks)
-                level_0[z_start:z_end, y_start:y_end, :] = block
-                        
-                del block
-                        
-                # Progress reporting
-                if block_count % 1 == 0 or block_count == total_blocks:
-                    elapsed = time.time() - level0_start
-                    rate = block_count / elapsed if elapsed > 0 else 0
-                    eta = (total_blocks - block_count) / rate if rate > 0 else 0
-                    progress = block_count / total_blocks * 100
-                        
-                    print(f"  Block {block_count:4d}/{total_blocks} ({progress:5.1f}%) - "
-                            f"{rate:5.1f} blocks/s - ETA: {eta:6.0f}s")   
-            
+                    block_count += 1
+                            
+                    # Read block from HDF5
+                    block = dataset[z_start:z_end, y_start:y_end, x_start:x_end]
+                            
+                    # Write to zarr (zarr will internally chunk to target_chunks)
+                    level_0[z_start:z_end, y_start:y_end, x_start:x_end] = block
+                            
+                    del block
+
+                    '''   
+                    # Progress reporting
+                    if block_count % 1 == 0 or block_count == total_blocks:
+                        elapsed = time.time() - level0_start
+                        rate = block_count / elapsed if elapsed > 0 else 0
+                        eta = (total_blocks - block_count) / rate if rate > 0 else 0
+                        progress = block_count / total_blocks * 100
+                            
+                        print(f"  Block {block_count:4d}/{total_blocks} ({progress:5.1f}%) - "
+                                f"{rate:5.1f} blocks/s - ETA: {eta:6.0f}s")   
+                    '''
+
+                    if block_count % 1 == 0 or block_count == total_blocks:
+                        elapsed = time.time() - level0_start
+                        rate = block_count / elapsed if elapsed > 0 else 0
+                        eta = (total_blocks - block_count) / rate if rate > 0 else 0
+
+                        progress_callback(
+                            block_count=block_count,
+                            total_blocks=total_blocks,
+                            rate=rate,
+                            eta=eta
+                        )
+                
         elapsed_level0 = time.time() - level0_start
         throughput = (np.prod(shape) * dtype_size / 1e9) / elapsed
             

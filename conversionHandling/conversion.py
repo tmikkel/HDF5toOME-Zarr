@@ -13,8 +13,8 @@ def convert_hdf5_to_omezarr(
     mode: str,  # "sequential" "hybrid" "parallel"
     safety_factor: float,
     compression_level: int,
-    storage: StorageType
-    
+    storage: StorageType,
+    progress_callback
 ):
     system = detect_system()
 
@@ -56,7 +56,8 @@ def convert_hdf5_to_omezarr(
         safety_factor, 
         system, 
         compression_level, 
-        storage
+        storage,
+        progress_callback
         )
     
     return store_path

@@ -6,9 +6,9 @@ from datetime import timedelta
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog,
     QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QMessageBox, 
-    QDoubleSpinBox, QSpinBox, QCheckBox
+    QDoubleSpinBox, QSpinBox, QCheckBox, QProgressBar
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import ( Qt, QThread, Signal, Slot )
 from conversionHandling.conversion import convert_hdf5_to_omezarr
 from conversionHandling.helpers.visualize import open_in_napari
 from conversionHandling.helpers.storage import StorageType
@@ -32,6 +32,47 @@ def chunk_bytes(chunks, dtype_bytes=4):
     return z * y * x * dtype_bytes
 
 
+# -------------------- Worker Thread --------------------
+
+class ConversionWorker(QThread):
+    """Background thread for running conversion without blocking GUI"""
+    progress_updated = Signal(int, int, float, float)  # block_count, total_blocks, rate, eta
+    conversion_finished = Signal(Path, float)  # store_path, total_time
+    conversion_failed = Signal(str)  # error_message
+    
+    def __init__(self, h5_path, out_path, chunks, mode, safety_factor, compression_level, storage):
+        super().__init__()
+        self.h5_path = h5_path
+        self.out_path = out_path
+        self.chunks = chunks
+        self.mode = mode
+        self.safety_factor = safety_factor
+        self.compression_level = compression_level
+        self.storage = storage
+    
+    def run(self):
+        """Execute conversion in background thread"""
+        try:
+            start_time = time.time()
+            store_path = convert_hdf5_to_omezarr(
+                self.h5_path,
+                self.out_path,
+                target_chunks=self.chunks,
+                mode=self.mode,
+                safety_factor=self.safety_factor,
+                compression_level=self.compression_level,
+                storage=self.storage,
+                progress_callback=self.handle_progress
+            )
+            total_seconds = time.time() - start_time
+            self.conversion_finished.emit(store_path, total_seconds)
+        except Exception as e:
+            self.conversion_failed.emit(str(e))
+    
+    def handle_progress(self, block_count, total_blocks, rate, eta):
+        """Called by conversion function to report progress"""
+        self.progress_updated.emit(block_count, total_blocks, rate, eta)
+
 # -------------------- GUI --------------------
 
 class ConverterGUI(QWidget):
@@ -39,6 +80,8 @@ class ConverterGUI(QWidget):
         super().__init__()
         self.setWindowTitle("HDF5 → OME-Zarr Converter")
         self.setMinimumWidth(520)
+
+        self.worker = None  # Keep reference to worker thread
 
         # ---- widgets ----
         self.h5_label = QLabel("No HDF5 file selected")
@@ -58,7 +101,7 @@ class ConverterGUI(QWidget):
         self.safety_factor_spin.setSingleStep(0.05)
         self.safety_factor_spin.setDecimals(2)
         self.safety_factor_spin.setValue(0.75)
-        self.safety_factor_spin.setSuffix(" × RAM")
+        self.safety_factor_spin.setSuffix(" × of available RAM")
 
         self.compression_spin = QSpinBox()
         self.compression_spin.setRange(1, 22)
@@ -66,9 +109,9 @@ class ConverterGUI(QWidget):
         self.compression_spin.setToolTip("Zstd compression level (1 = fast, 22 = max)")
 
         self.storage_select = QComboBox()
-        self.storage_select.addItem("HDD", StorageType.HDD)
-        self.storage_select.addItem("SATA SSD", StorageType.SATA_SSD)
-        self.storage_select.addItem("NVMe SSD", StorageType.NVME)
+        self.storage_select.addItem("HDD (Max 2 Workers)", StorageType.HDD)
+        self.storage_select.addItem("SATA SSD (Max 4 Workers)", StorageType.SATA_SSD)
+        self.storage_select.addItem("NVMe SSD (Max 8 Workers)", StorageType.NVME)
 
         self.storage_select.setCurrentIndex(2)  # default = NVMe SSD
 
@@ -80,6 +123,11 @@ class ConverterGUI(QWidget):
 
         self.visualize_checkbox = QCheckBox("Open result in viewer")
         self.visualize_checkbox.setChecked(False)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_label = QLabel("")
+        self.progress_label.setVisible(False)
 
         # ---- layouts ----
         layout = QVBoxLayout()
@@ -121,6 +169,10 @@ class ConverterGUI(QWidget):
         layout.addSpacing(20)
         layout.addWidget(self.run_button, alignment=Qt.AlignCenter)
 
+        layout.addSpacing(10)
+        layout.addWidget(self.progress_bar)
+        layout.addWidget(self.progress_label)
+
         self.setLayout(layout)
 
         self.h5_path: Path | None = None
@@ -153,7 +205,7 @@ class ConverterGUI(QWidget):
 
         if mb > 4:
             self.chunk_feedback.setText(
-                f"⚠ Chunk size ≈ {mb:.2f} MB (> 2 MB). Consider smaller chunks."
+                f"⚠ Chunk size ≈ {mb:.2f} MB (> 4 MB). Consider smaller chunks."
             )
         else:
             self.chunk_feedback.setText(f"✓ Chunk size ≈ {mb:.2f} MB")
@@ -173,24 +225,52 @@ class ConverterGUI(QWidget):
 
         mode = self.mode_select.currentText()
         
-        # ---- run conversion ----
-        try:
-            start_time = time.time()
-            store_path = convert_hdf5_to_omezarr(
-                self.h5_path,
-                self.out_path,
-                target_chunks=chunks,
-                mode=mode,
-                safety_factor = self.safety_factor_spin.value(),
-                compression_level = self.compression_spin.value(),
-                storage = self.storage_select.currentData()
-            )
-            total_seconds = time.time() - start_time
-        except Exception as e:
-            QMessageBox.critical(self, "Conversion failed", str(e))
-            return
+        # Disable controls during conversion
+        self.run_button.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_label.setVisible(True)
+        self.progress_bar.setValue(0)
         
-        # ---- visualization ----
+        # Create and start worker thread
+        self.worker = ConversionWorker(
+            self.h5_path,
+            self.out_path,
+            chunks,
+            mode,
+            self.safety_factor_spin.value(),
+            self.compression_spin.value(),
+            self.storage_select.currentData()
+        )
+        
+        # Connect signals
+        self.worker.progress_updated.connect(self.update_progress)
+        self.worker.conversion_finished.connect(self.on_conversion_finished)
+        self.worker.conversion_failed.connect(self.on_conversion_failed)
+        
+        # Start conversion
+        self.worker.start()
+    
+    @Slot(int, int, float, float)
+    def update_progress(self, block_count, total_blocks, rate, eta):
+        """Update progress bar and label"""
+        progress_pct = int((block_count / total_blocks) * 100)
+        self.progress_bar.setValue(progress_pct)
+        
+        eta_str = str(timedelta(seconds=int(eta))) if eta > 0 else "calculating..."
+        self.progress_label.setText(
+            f"Block {block_count}/{total_blocks} ({progress_pct}%) • "
+            f"{rate:.1f} blocks/s • ETA: {eta_str}"
+        )
+    
+    @Slot(Path, float)
+    def on_conversion_finished(self, store_path, total_seconds):
+        """Handle successful conversion completion"""
+        # Re-enable controls
+        self.run_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.progress_label.setVisible(False)
+        
+        # Visualization
         if self.visualize_checkbox.isChecked():
             try:
                 open_in_napari(store_path)
@@ -201,14 +281,27 @@ class ConverterGUI(QWidget):
                     str(e)
                 )
 
+        # Success message
+        chunks = parse_chunks(self.chunk_input.text())
+        mode = self.mode_select.currentText()
         msg = (
             f"Output folder: {self.out_path}\n"
             f"Chunks: {chunks}\n"
             f"Mode: {mode}\n\n"
-            f"  Total runtime: {timedelta(seconds=int(total_seconds))}"
+            f"Total runtime: {timedelta(seconds=int(total_seconds))}"
         )
+        QMessageBox.information(self, "Conversion Complete", msg)
+    
+    @Slot(str)
+    def on_conversion_failed(self, error_msg):
+        """Handle conversion failure"""
+        # Re-enable controls
+        self.run_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.progress_label.setVisible(False)
+        
+        QMessageBox.critical(self, "Conversion failed", error_msg)
 
-        QMessageBox.information(self, "Conversion", msg)
 
 
 # -------------------- main --------------------

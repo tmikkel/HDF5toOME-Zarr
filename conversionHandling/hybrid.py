@@ -4,8 +4,7 @@ import numpy as np
 import time
 from datetime import timedelta
 from numcodecs import Blosc
-from dask.distributed import Client, LocalCluster
-from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster, as_completed
 import dask
 import dask.array as da
 from pathlib import Path
@@ -25,6 +24,7 @@ def hybrid_conversion(
         system: SystemInfo,
         compression_level: int,
         storage: StorageType,
+        progress_callback=None,
         dataset_path = 'exchange/data',
         ):
     print("DEBUG: entering hybrid_conversion")
@@ -51,6 +51,7 @@ def hybrid_conversion(
 
             # For hybrid conversion block_z shouldn't be greater than target_z
             block_z = target_chunks[0]
+            
 
     read_chunks_bytes = np.prod(block_shape) * dtype_size
 
@@ -108,11 +109,30 @@ def hybrid_conversion(
 
                 tasks.append(copy_block(z_start, z_end, y_start, y_end, x_start, x_end))
 
-    print(f"\n✓ Submitting {len(tasks)} tasks for parallel execution...")
+    total_tasks = len(tasks)
+    print(f"\n✓ Submitting {total_tasks} tasks for parallel execution...")
 
     start = time.time()
-    with ProgressBar():
-        dask.compute(*tasks)
+
+    # Submit all tasks and get futures
+    futures = client.compute(tasks)
+
+    # Track progress
+    completed = 0
+    
+    for future in as_completed(futures):
+        completed += 1
+        elapsed = time.time() - start
+        rate = completed / elapsed if elapsed > 0 else 0
+        eta = (total_tasks - completed) / rate if rate > 0 else 0
+        
+        progress_callback(
+            block_count=completed,
+            total_blocks=total_tasks,
+            rate=rate,
+            eta=eta
+        )
+
     elapsed = time.time() - start
 
     total_gb = np.prod(shape) * dtype_size / 1e9
