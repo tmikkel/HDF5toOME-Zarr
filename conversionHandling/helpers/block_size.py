@@ -6,7 +6,8 @@ def block_size(
         safety_factor: float,
         dtype_size: int,
         system: SystemInfo,
-        mem_divider: int = 1
+        memory_limit: int,
+        parallel: bool
 
 ):
     """ 
@@ -17,40 +18,38 @@ def block_size(
     """
         
     z, y, x = shape
-    block_z, block_y, block_x = target_chunks
-        
-    # Available memory given safety factor
-    available_bytes = system.available_ram_bytes * safety_factor / mem_divider
+    chunk_z, chunk_y, chunk_x = target_chunks
+    
+    if parallel == True:
+        print("parallel block limit")
+        available_bytes = memory_limit * (2/3) - 500_000_000
+    elif parallel == False:
+        print("sequential block limit")
+        # Available memory given safety factor
+        available_bytes = system.available_ram_bytes * safety_factor
         
     # Calculate maximum amount of Z-planes that fit in memory
     bytes_per_z_plane = y * x * dtype_size
     max_z_planes = int(available_bytes / bytes_per_z_plane)
 
 
-    if max_z_planes >= block_z:
-        # Align to target_z for efficient zarr chunking
-        # Use largest multiple of target_z that fits
-        optimal_z = (max_z_planes // block_z) * block_z
-        optimal_z = max(block_z, optimal_z)  # At least one chunk depth
-        optimal_z = min(optimal_z, z)   # Don't exceed dataset
-        block_z = optimal_z
-    else:
+    if max_z_planes < chunk_z:
         print(f"\nFull Target Z plane ({target_chunks[0]}) too large for memory")
         print("Reducing Y axis to fit block in memory")
         
         # Calculate max Y that fits with target Z and full X
-        bytes_per_y_row = block_z * x * dtype_size
+        bytes_per_y_row = chunk_z * x * dtype_size
         max_y_rows = int(available_bytes / bytes_per_y_row)
-        optimal_y = (max_y_rows // block_y) * block_y 
-        optimal_y = max(block_y, optimal_y)  # At least one chunk depth
-        if max_y_rows >= y/2+block_y:
-            optimal_y = int(min(optimal_y, ((y/2)//block_y)*block_y+block_y))   # Don't exceed half of y + target_y
+        optimal_y = (max_y_rows // chunk_y) * chunk_y 
+        optimal_y = max(chunk_y, optimal_y)  # At least one chunk depth
+        if max_y_rows >= y / 2 + chunk_y:
+            optimal_y = int(min(optimal_y, ((y / 2) // chunk_y) * chunk_y + chunk_y))   # Cap to a multiple of chunk_y just above half of y
         y = optimal_y
 
-    block_shape = block_z, y, x
+    block_shape = chunk_z, y, x
         
     # Calculate actual memory usage
-    actual_gb = block_z * y * x * dtype_size / 1e9
+    actual_gb = chunk_z * y * x * dtype_size / 1e9
 
     max_mem_gb = system.available_ram_gb
         

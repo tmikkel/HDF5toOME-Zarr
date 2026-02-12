@@ -1,16 +1,19 @@
 import h5py
 from pathlib import Path
-from conversionHandling.hybrid import hybrid_conversion
+from dask.distributed import Client, LocalCluster
 from conversionHandling.parallel import parallel_conversion
 from conversionHandling.sequential import sequential_conversion
 from conversionHandling.helpers.sysinfo import detect_system
-from conversionHandling.helpers.storage import StorageType
+from conversionHandling.helpers.storage import StorageType, STORAGE_WORKER_CAP
+from conversionHandling.pyramid_write import pyramid_write
+from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
+from conversionHandling.write_metadata import write_metadata
 
 def convert_hdf5_to_omezarr(
     h5_path: Path,
     output_dir: Path,
     target_chunks: tuple[int, int, int],
-    mode: str,  # "sequential" "hybrid" "parallel"
+    mode: str,  # "sequential" "parallel"
     safety_factor: float,
     compression_level: int,
     storage: StorageType,
@@ -31,23 +34,46 @@ def convert_hdf5_to_omezarr(
         if dataset_path not in f:
             print(f"  ERROR: Dataset '{dataset_path}' not found")
             print(f"  Available paths: {list(f.keys())}")
-            
-        source_chunks = f[dataset_path].chunks
+
+        data_size_mb = f[dataset_path].nbytes / (1024**2)
+
+    # Worker cap, cpu or user defined
+    storage_cap = STORAGE_WORKER_CAP[storage]
+    cpu_cap = system.physical_cores
+    min_mem_per_worker = 1_000_000_000  # 1GB
+    available_bytes = system.available_ram_bytes * safety_factor
+
+    # Maximum workers allowed by RAM constraint
+    max_workers_by_ram = int(available_bytes // min_mem_per_worker)
+
+    # Final worker count
+    n_workers = max(1, min(storage_cap, cpu_cap, max_workers_by_ram)
+    )
+
+    memory_limit = available_bytes / n_workers
+    print(f"System available mem: {system.available_ram_gb * safety_factor}")
+    print(f"Mem per worker: {(system.available_ram_gb * safety_factor)/n_workers}")
+
+    cluster = LocalCluster(
+        n_workers=n_workers,
+        threads_per_worker=1,
+        processes=True,
+        memory_limit=memory_limit,
+    )
+    client = Client(cluster)
+
+    print(f"Dask dashboard: {client.dashboard_link}")
 
     print(f"Mode sanity check: {mode}")
 
-
     mode_map = {
         "Sequential": sequential_conversion,
-        "Hybrid": hybrid_conversion,
         "Parallel": parallel_conversion
         }
 
-    # fallback for chunked HDF5
-    if source_chunks is not None:
-        func = parallel_conversion
-    else:
-        func = mode_map[mode]
+    func = mode_map[mode]
+
+    print("Stage 1: HDF5 to level 0 OME-Zarr")
 
     func(
         h5_path, 
@@ -55,9 +81,43 @@ def convert_hdf5_to_omezarr(
         target_chunks, 
         safety_factor, 
         system, 
-        compression_level, 
-        storage,
-        progress_callback
+        compression_level,
+        memory_limit,
+        progress_callback,
+        client=client
         )
+
+    print("Stage 2: Write Multi-Resolution Pyramid from level 0")
+
+    # Dynamically calculate number of pyramid levels
+    pyramid_levels = n_pyramid_levels(
+        data_size_mb,
+        target_top_level_mb=100,
+        downsample_factor=2
+    )
+
+    # Cap number of task at a time per worker
+    max_in_flight = n_workers * 16
+
+    pyramid_write(
+        compression_level,
+        store_path,
+        target_chunks,
+        pyramid_levels,
+        max_in_flight,
+        downsample_factor=2,
+        client=client
+    )
+
+    print("Stage 3: Write OME-Zarr Metadata")
+
+    write_metadata(
+        store_path,
+        pyramid_levels,
+        downsample_factor=2
+    )
+
+    client.close()
+    cluster.close()
     
     return store_path

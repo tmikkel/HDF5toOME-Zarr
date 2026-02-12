@@ -1,5 +1,4 @@
 import sys
-import math
 from pathlib import Path
 import time
 from datetime import timedelta
@@ -116,7 +115,7 @@ class ConverterGUI(QWidget):
         self.storage_select.setCurrentIndex(2)  # default = NVMe SSD
 
         self.mode_select = QComboBox()
-        self.mode_select.addItems(["Sequential", "Hybrid", "Parallel"])
+        self.mode_select.addItems(["Sequential", "Parallel"])
 
         self.run_button = QPushButton("Convert")
         self.run_button.clicked.connect(self.run_conversion)
@@ -211,9 +210,9 @@ class ConverterGUI(QWidget):
         bytes_per_chunk = chunk_bytes(chunks)
         mb = bytes_per_chunk / (1024**2)
 
-        if mb > 4:
+        if mb > 8:
             self.chunk_feedback.setText(
-                f"⚠ Chunk size ≈ {mb:.2f} MB (> 4 MB). Consider smaller chunks."
+                f"⚠ Chunk size ≈ {mb:.2f} MB (> 8 MB). Consider smaller chunks."
             )
         else:
             self.chunk_feedback.setText(f"✓ Chunk size ≈ {mb:.2f} MB")

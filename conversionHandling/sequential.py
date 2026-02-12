@@ -6,11 +6,7 @@ import numpy as np
 from numcodecs import Blosc
 from pathlib import Path
 from conversionHandling.helpers.sysinfo import SystemInfo
-from conversionHandling.helpers.pyramid_write import pyramid_write
-from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
-from conversionHandling.helpers.write_metadata import write_metadata
 from conversionHandling.helpers.block_size import block_size
-from conversionHandling.helpers.storage import StorageType
 
 def sequential_conversion(
     h5_path: Path,
@@ -19,7 +15,7 @@ def sequential_conversion(
     safety_factor: float,
     system: SystemInfo,
     compression_level: int,
-    storage: StorageType,
+    memory_limit: int,
     progress_callback=None,
     dataset_path = 'exchange/data'
 ):
@@ -37,7 +33,9 @@ def sequential_conversion(
             target_chunks,
             safety_factor,
             dtype_size,
-            system
+            system,
+            memory_limit,
+            parallel=False
         )
 
         block_z, block_y, block_x = block_shape
@@ -92,18 +90,6 @@ def sequential_conversion(
                             
                     del block
 
-                    '''   
-                    # Progress reporting
-                    if block_count % 1 == 0 or block_count == total_blocks:
-                        elapsed = time.time() - level0_start
-                        rate = block_count / elapsed if elapsed > 0 else 0
-                        eta = (total_blocks - block_count) / rate if rate > 0 else 0
-                        progress = block_count / total_blocks * 100
-                            
-                        print(f"  Block {block_count:4d}/{total_blocks} ({progress:5.1f}%) - "
-                                f"{rate:5.1f} blocks/s - ETA: {eta:6.0f}s")   
-                    '''
-
                     if block_count % 1 == 0 or block_count == total_blocks:
                         elapsed = time.time() - level0_start
                         rate = block_count / elapsed if elapsed > 0 else 0
@@ -122,27 +108,3 @@ def sequential_conversion(
         print(f"\n✓ Level 0 complete in {elapsed_level0:.1f}s")
         print(f"  {timedelta(seconds=int(elapsed_level0))}")
         print(f"  Throughput: {throughput:.2f} GB/s")
-
-        pyramid_levels = n_pyramid_levels(
-            data_size_mb,
-            target_top_level_mb=10,
-            downsample_factor=2
-            )
-
-        print("Stage 2: Write Multi-Resolution Pyramid from level 0")
-
-        pyramid_write(
-            compression_level,
-            output_path,
-            target_chunks,
-            pyramid_levels,
-            downsample_factor=2,
-        )
-
-        print("Stage 3: Write OME-Zarr Metadata")
-
-        write_metadata(
-                output_path,
-                pyramid_levels,
-                downsample_factor=2
-        )

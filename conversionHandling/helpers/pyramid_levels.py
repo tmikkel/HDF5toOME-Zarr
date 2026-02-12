@@ -7,7 +7,7 @@ def n_pyramid_levels(
     levels = 1
     current_size_mb = data_size_mb
     
-    while current_size_mb > target_top_level_mb:
+    while current_size_mb >= target_top_level_mb:
         current_size_mb = current_size_mb / (downsample_factor ** 3)
         levels += 1
     
@@ -15,6 +15,4 @@ def n_pyramid_levels(
     print(f"Recommended levels: {levels}")
     print(f"Actual top level: {current_size_mb:.1f} MB")
 
-    pyramid_levels = levels
-
-    return pyramid_levels
+    return levels

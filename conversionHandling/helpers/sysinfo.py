@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import os
-import platform
 import psutil
 
 @dataclass(frozen=True)
@@ -9,8 +8,6 @@ class SystemInfo:
     physical_cores: int
     total_ram_bytes: int
     available_ram_bytes: int
-    platform: str
-    is_slurm: bool
 
     @property
     def total_ram_gb(self) -> float:
@@ -27,7 +24,5 @@ def detect_system() -> SystemInfo:
         logical_cores=os.cpu_count() or 1,
         physical_cores=psutil.cpu_count(logical=False) or 1,
         total_ram_bytes=vm.total,
-        available_ram_bytes=vm.available,
-        platform=platform.system().lower(),
-        is_slurm="SLURM_JOB_ID" in os.environ,
+        available_ram_bytes=vm.available
     )
