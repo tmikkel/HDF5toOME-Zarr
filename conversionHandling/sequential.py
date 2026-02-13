@@ -16,6 +16,7 @@ def sequential_conversion(
     system: SystemInfo,
     compression_level: int,
     memory_limit: int,
+    progress_levels: int,
     progress_callback=None,
     dataset_path = 'exchange/data'
 ):
@@ -96,6 +97,8 @@ def sequential_conversion(
                         eta = (total_blocks - block_count) / rate if rate > 0 else 0
 
                         progress_callback(
+                            level=0,
+                            progress_levels=progress_levels,
                             block_count=block_count,
                             total_blocks=total_blocks,
                             rate=rate,

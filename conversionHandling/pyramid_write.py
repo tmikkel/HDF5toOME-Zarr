@@ -14,8 +14,10 @@ def pyramid_write(
         output_path: Path,
         target_chunks: tuple[int, int, int],
         pyramid_levels: int,
+        progress_levels: int,
         max_in_flight: int,
         downsample_factor: int,
+        progress_callback=None,
         client=None
 ):
 
@@ -26,7 +28,9 @@ def pyramid_write(
         downsample_factor,
         target_chunks,
         compressor,
-        max_in_flight
+        max_in_flight,
+        progress_levels,
+        progress_callback=None
     ):
 
         print(f"\n{'='*60}")
@@ -66,7 +70,9 @@ def pyramid_write(
         )
         print(f"Total tasks for current level: {current_total_tasks}")
 
-        print(f"Total recurring in flights: {current_total_tasks // max_in_flight}")
+        in_flight = current_total_tasks // max_in_flight
+
+        print(f"Total recurring in flights: {in_flight}")
 
         level_start = time.time()
         
@@ -121,6 +127,19 @@ def pyramid_write(
                         wait(futures)
                         futures = []
 
+                        elapsed = time.time() - level_start
+                        rate = completed / elapsed if elapsed > 0 else 0
+                        eta = (in_flight - completed) / rate if rate > 0 else 0
+
+                        progress_callback(
+                            level=level,
+                            progress_levels=progress_levels,
+                            block_count=completed,
+                            total_blocks=in_flight,
+                            rate=rate,
+                            eta=eta
+                        )
+
         if futures:
             wait(futures)
 
@@ -150,7 +169,9 @@ def pyramid_write(
             downsample_factor,
             target_chunks,
             compressor,
-            max_in_flight
+            max_in_flight,
+            progress_levels,
+            progress_callback
         )
 
     print("\nTotal pyramid time: "

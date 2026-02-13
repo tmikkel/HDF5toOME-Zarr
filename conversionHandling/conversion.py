@@ -17,7 +17,8 @@ def convert_hdf5_to_omezarr(
     safety_factor: float,
     compression_level: int,
     storage: StorageType,
-    progress_callback
+    progress_callback,
+    downsample_factor
 ):
     system = detect_system()
 
@@ -36,6 +37,15 @@ def convert_hdf5_to_omezarr(
             print(f"  Available paths: {list(f.keys())}")
 
         data_size_mb = f[dataset_path].nbytes / (1024**2)
+    
+    # Dynamically calculate number of pyramid levels
+    pyramid_levels = n_pyramid_levels(
+        data_size_mb,
+        downsample_factor,
+        target_top_level_mb=100,
+        
+    )
+    progress_levels = pyramid_levels - 1
 
     # Worker cap, cpu or user defined
     storage_cap = STORAGE_WORKER_CAP[storage]
@@ -83,18 +93,12 @@ def convert_hdf5_to_omezarr(
         system, 
         compression_level,
         memory_limit,
+        progress_levels,
         progress_callback,
         client=client
         )
 
     print("Stage 2: Write Multi-Resolution Pyramid from level 0")
-
-    # Dynamically calculate number of pyramid levels
-    pyramid_levels = n_pyramid_levels(
-        data_size_mb,
-        target_top_level_mb=100,
-        downsample_factor=2
-    )
 
     # Cap number of task at a time per worker
     max_in_flight = n_workers * 16
@@ -104,8 +108,10 @@ def convert_hdf5_to_omezarr(
         store_path,
         target_chunks,
         pyramid_levels,
+        progress_levels,
         max_in_flight,
-        downsample_factor=2,
+        downsample_factor,
+        progress_callback,
         client=client
     )
 

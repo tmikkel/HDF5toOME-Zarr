@@ -1,7 +1,7 @@
 def n_pyramid_levels(
         data_size_mb: float,
-        target_top_level_mb: int,
         downsample_factor: int,
+        target_top_level_mb: int
 ):    
     # Calculate optimal pyramid levels
     levels = 1

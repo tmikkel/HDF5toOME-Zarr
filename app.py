@@ -35,7 +35,7 @@ def chunk_bytes(chunks, dtype_bytes=4):
 
 class ConversionWorker(QThread):
     """Background thread for running conversion without blocking GUI"""
-    progress_updated = Signal(int, int, float, float)  # block_count, total_blocks, rate, eta
+    progress_updated = Signal(int, int, int, int, float, float)  # block_count, total_blocks, rate, eta
     conversion_finished = Signal(Path, float)  # store_path, total_time
     conversion_failed = Signal(str)  # error_message
     
@@ -61,16 +61,17 @@ class ConversionWorker(QThread):
                 safety_factor=self.safety_factor,
                 compression_level=self.compression_level,
                 storage=self.storage,
-                progress_callback=self.handle_progress
+                progress_callback=self.handle_progress,
+                downsample_factor=2
             )
             total_seconds = time.time() - start_time
             self.conversion_finished.emit(store_path, total_seconds)
         except Exception as e:
             self.conversion_failed.emit(str(e))
     
-    def handle_progress(self, block_count, total_blocks, rate, eta):
+    def handle_progress(self, level, progress_levels, block_count, total_blocks, rate, eta):
         """Called by conversion function to report progress"""
-        self.progress_updated.emit(block_count, total_blocks, rate, eta)
+        self.progress_updated.emit(level, progress_levels, block_count, total_blocks, rate, eta)
 
 # -------------------- GUI --------------------
 
@@ -115,7 +116,7 @@ class ConverterGUI(QWidget):
         self.storage_select.setCurrentIndex(2)  # default = NVMe SSD
 
         self.mode_select = QComboBox()
-        self.mode_select.addItems(["Sequential", "Parallel"])
+        self.mode_select.addItems(["Parallel", "Sequential"])
 
         self.run_button = QPushButton("Convert")
         self.run_button.clicked.connect(self.run_conversion)
@@ -258,13 +259,14 @@ class ConverterGUI(QWidget):
         self.worker.start()
     
     @Slot(int, int, float, float)
-    def update_progress(self, block_count, total_blocks, rate, eta):
+    def update_progress(self, level, progress_levels, block_count, total_blocks, rate, eta):
         """Update progress bar and label"""
         progress_pct = int((block_count / total_blocks) * 100)
         self.progress_bar.setValue(progress_pct)
         
         eta_str = str(timedelta(seconds=int(eta))) if eta > 0 else "calculating..."
         self.progress_label.setText(
+            f"Building OME-Zarr level {level} of {progress_levels}\n"
             f"Block {block_count}/{total_blocks} ({progress_pct}%) • "
             f"{rate:.1f} blocks/s • ETA: {eta_str}"
         )

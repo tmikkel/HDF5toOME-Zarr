@@ -17,6 +17,7 @@ def parallel_conversion(
         system: SystemInfo,
         compression_level: int,
         memory_limit: int,
+        progress_levels: int,
         progress_callback=None,
         client=None,
         dataset_path = 'exchange/data',
@@ -95,6 +96,8 @@ def parallel_conversion(
         eta = (total_tasks - completed) / rate if rate > 0 else 0
         
         progress_callback(
+            level=0,
+            progress_levels=progress_levels,
             block_count=completed,
             total_blocks=total_tasks,
             rate=rate,
