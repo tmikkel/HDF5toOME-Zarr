@@ -19,6 +19,7 @@ def sequential_conversion(
     worker_limit: int,
     progress_levels: int,
     progress_callback=None,
+    client=None,
     dataset_path = 'exchange/data'
 ):
     print("DEBUG: entering sequential_conversion")
