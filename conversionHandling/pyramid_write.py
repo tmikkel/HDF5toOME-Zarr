@@ -2,6 +2,7 @@ import os
 import zarr
 from dask.distributed import wait
 from numcodecs import Blosc
+from numcodecs.abc import Codec
 from datetime import timedelta
 from pathlib import Path
 import time
@@ -22,15 +23,15 @@ def pyramid_write(
 ):
 
     def build_level(
-        client,
-        output_path,
-        level,
-        downsample_factor,
-        target_chunks,
-        compressor,
-        max_in_flight,
-        progress_levels,
-        progress_callback=None
+        output_path: Path,
+        level: int,
+        downsample_factor: int,
+        target_chunks: tuple[int, int, int],
+        compressor: Codec,
+        max_in_flight: int,
+        progress_levels: int,
+        progress_callback=None,
+        client=None
     ):
 
         print(f"\n{'='*60}")
@@ -163,7 +164,6 @@ def pyramid_write(
     pyramid_start = time.time()
     for level in range(1, pyramid_levels):
         build_level(
-            client,
             output_path,
             level,
             downsample_factor,
@@ -171,7 +171,8 @@ def pyramid_write(
             compressor,
             max_in_flight,
             progress_levels,
-            progress_callback
+            progress_callback,
+            client,
         )
 
     print("\nTotal pyramid time: "

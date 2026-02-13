@@ -1,11 +1,12 @@
 import zarr
+from pathlib import Path
 
 def mean_downsample_block(
-        source_path,
-        destination_path,
-        block_region,
-        destination_coords,
-        downsample_factor
+        source_path: Path,
+        destination_path: Path,
+        block_region: tuple[slice, slice, slice],
+        destination_coords: tuple[slice, slice, slice],
+        downsample_factor: int
     ):
         """
         Each worker task:

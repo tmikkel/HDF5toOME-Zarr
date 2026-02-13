@@ -18,7 +18,8 @@ def convert_hdf5_to_omezarr(
     compression_level: int,
     storage: StorageType,
     progress_callback,
-    downsample_factor
+    downsample_factor,
+    dataset_path = "exchange/data"
 ):
     system = detect_system()
 
@@ -29,8 +30,6 @@ def convert_hdf5_to_omezarr(
         store_path = output_dir / f"{base_name}_{i}.ome.zarr"
         i += 1
     
-    dataset_path = "exchange/data"
-
     with h5py.File(h5_path, "r") as f:
         if dataset_path not in f:
             print(f"  ERROR: Dataset '{dataset_path}' not found")

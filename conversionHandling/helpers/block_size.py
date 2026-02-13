@@ -22,7 +22,7 @@ def block_size(
     
     if parallel == True:
         print("parallel block limit")
-        available_bytes = memory_limit * (2/3) - 500_000_000
+        available_bytes = memory_limit * (2/3) - 400_000_000 # Extra safety buffer
     elif parallel == False:
         print("sequential block limit")
         # Available memory given safety factor

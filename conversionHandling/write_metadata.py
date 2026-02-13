@@ -47,8 +47,7 @@ def write_metadata(
             'method': 'block mean downsampling'
         }
     }]
-    print("DONE")
-    print("\nPyramid Summary:")
+    print("\nOME-Zarr Summary:")
     print("-" * 60)
         
     for level in range(pyramid_levels):
