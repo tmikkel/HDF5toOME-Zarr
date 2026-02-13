@@ -41,6 +41,18 @@ def block_size(
         # Calculate max Y that fits with target Z and full X
         bytes_per_y_row = chunk_z * x * dtype_size
         max_y_rows = int(available_bytes / bytes_per_y_row)
+
+        if max_y_rows < chunk_y:
+            print(f"\nFull Target Y rows ({target_chunks[1]}) too large for memory")
+            print("Reducing X axis to fit block in memory")
+            bytes_per_x_column = chunk_z * chunk_y * dtype_size
+            max_x_columns = int(available_bytes / bytes_per_x_column)
+            optimal_x = (max_x_columns // chunk_x) * chunk_x
+            optimal_x = max(chunk_x, optimal_x)  # At least one chunk depth
+            if max_x_columns >= x / 2 + chunk_x:
+                optimal_x = int(min(optimal_x, ((x / 2) // chunk_x) * chunk_x + chunk_x))   # Cap to a multiple of chunk_y just above half of y
+            x = optimal_x
+
         optimal_y = (max_y_rows // chunk_y) * chunk_y 
         optimal_y = max(chunk_y, optimal_y)  # At least one chunk depth
         if max_y_rows >= y / 2 + chunk_y:
