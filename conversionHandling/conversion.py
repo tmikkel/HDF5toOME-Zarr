@@ -3,7 +3,7 @@ from pathlib import Path
 from dask.distributed import Client, LocalCluster
 from conversionHandling.parallel import parallel_conversion
 from conversionHandling.sequential import sequential_conversion
-from conversionHandling.helpers.sysinfo import detect_system
+from conversionHandling.helpers.sysinfo import SystemInfo
 from conversionHandling.helpers.storage import StorageType, STORAGE_WORKER_CAP
 from conversionHandling.pyramid_write import pyramid_write
 from conversionHandling.helpers.pyramid_levels import n_pyramid_levels
@@ -17,11 +17,12 @@ def convert_hdf5_to_omezarr(
     safety_factor: float,
     compression_level: int,
     storage: StorageType,
+    memory_limit_bytes: int,
+    system: SystemInfo,
     progress_callback,
     downsample_factor,
     dataset_path = "exchange/data"
 ):
-    system = detect_system()
 
     base_name = h5_path.stem 
     store_path = output_dir / f"{base_name}.ome.zarr"
@@ -50,7 +51,7 @@ def convert_hdf5_to_omezarr(
     storage_cap = STORAGE_WORKER_CAP[storage]
     cpu_cap = system.physical_cores
     min_mem_per_worker = 1_000_000_000  # 1GB
-    available_bytes = system.available_ram_bytes * safety_factor
+    available_bytes = memory_limit_bytes * safety_factor
 
     # Maximum workers allowed by RAM constraint
     max_workers_by_ram = int(available_bytes // min_mem_per_worker)
@@ -59,15 +60,15 @@ def convert_hdf5_to_omezarr(
     n_workers = max(1, min(storage_cap, cpu_cap, max_workers_by_ram)
     )
 
-    memory_limit = available_bytes / n_workers
-    print(f"System available mem: {system.available_ram_gb * safety_factor}")
-    print(f"Mem per worker: {(system.available_ram_gb * safety_factor)/n_workers}")
+    worker_limit = available_bytes / n_workers
+    print(f"System available mem: {(system.available_ram_gb * safety_factor):.1f} using {(available_bytes / 1e9):.1f}")
+    print(f"Number of workers {n_workers}, Mem per worker: {(worker_limit/1e9):.1f}")
 
     cluster = LocalCluster(
         n_workers=n_workers,
         threads_per_worker=1,
         processes=True,
-        memory_limit=memory_limit,
+        memory_limit=worker_limit,
     )
     client = Client(cluster)
 
@@ -89,9 +90,10 @@ def convert_hdf5_to_omezarr(
         store_path, 
         target_chunks, 
         safety_factor, 
-        system, 
+        system,
+        memory_limit_bytes,
         compression_level,
-        memory_limit,
+        worker_limit,
         progress_levels,
         progress_callback,
         client=client

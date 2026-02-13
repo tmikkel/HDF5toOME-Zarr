@@ -6,7 +6,8 @@ def block_size(
         safety_factor: float,
         dtype_size: int,
         system: SystemInfo,
-        memory_limit: int,
+        memory_limit_bytes: int,
+        worker_limit: int,
         parallel: bool
 
 ):
@@ -22,11 +23,11 @@ def block_size(
     
     if parallel == True:
         print("parallel block limit")
-        available_bytes = memory_limit * (2/3) - 400_000_000 # Extra safety buffer
+        available_bytes = worker_limit * (2/3) - 400_000_000 # Extra safety buffer
     elif parallel == False:
         print("sequential block limit")
         # Available memory given safety factor
-        available_bytes = system.available_ram_bytes * safety_factor
+        available_bytes = memory_limit_bytes * safety_factor
         
     # Calculate maximum amount of Z-planes that fit in memory
     bytes_per_z_plane = y * x * dtype_size
@@ -51,7 +52,7 @@ def block_size(
     # Calculate actual memory usage
     actual_gb = chunk_z * y * x * dtype_size / 1e9
 
-    max_mem_gb = system.available_ram_gb
+    max_mem_gb = memory_limit_bytes / 1e9
         
     print(f"\n{'='*60}")
     print("Optimal Block Size Calculation")

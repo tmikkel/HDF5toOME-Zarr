@@ -5,12 +5,13 @@ from datetime import timedelta
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog,
     QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QMessageBox, 
-    QDoubleSpinBox, QSpinBox, QCheckBox, QProgressBar
+    QDoubleSpinBox, QSpinBox, QCheckBox, QProgressBar, QSlider
 )
 from PySide6.QtCore import ( Qt, QThread, Signal, Slot )
 from conversionHandling.conversion import convert_hdf5_to_omezarr
 from conversionHandling.helpers.visualize import open_in_napari
 from conversionHandling.helpers.storage import StorageType
+from conversionHandling.helpers.sysinfo import detect_system
 
 # -------------------- helpers --------------------
 
@@ -39,7 +40,7 @@ class ConversionWorker(QThread):
     conversion_finished = Signal(Path, float)  # store_path, total_time
     conversion_failed = Signal(str)  # error_message
     
-    def __init__(self, h5_path, out_path, chunks, mode, safety_factor, compression_level, storage):
+    def __init__(self, h5_path, out_path, chunks, mode, safety_factor, compression_level, storage, memory_limit_bytes, system):
         super().__init__()
         self.h5_path = h5_path
         self.out_path = out_path
@@ -48,6 +49,8 @@ class ConversionWorker(QThread):
         self.safety_factor = safety_factor
         self.compression_level = compression_level
         self.storage = storage
+        self.memory_limit_bytes = memory_limit_bytes
+        self.system = system
     
     def run(self):
         """Execute conversion in background thread"""
@@ -61,6 +64,8 @@ class ConversionWorker(QThread):
                 safety_factor=self.safety_factor,
                 compression_level=self.compression_level,
                 storage=self.storage,
+                memory_limit_bytes=self.memory_limit_bytes,
+                system=self.system,
                 progress_callback=self.handle_progress,
                 downsample_factor=2
             )
@@ -83,6 +88,9 @@ class ConverterGUI(QWidget):
 
         self.worker = None  # Keep reference to worker thread
 
+        self.system = detect_system()
+        available_gb = int(self.system.available_ram_gb)
+
         # ---- widgets ----
         self.h5_label = QLabel("No HDF5 file selected")
         self.h5_button = QPushButton("Select .h5 file")
@@ -96,12 +104,38 @@ class ConverterGUI(QWidget):
         self.chunk_feedback = QLabel("")
         self.chunk_feedback.setStyleSheet("color: orange")
 
+        self.ram_slider = QSlider(Qt.Horizontal)
+        self.ram_label = QLabel()
+        self.ram_warning_label = QLabel()
+        self.ram_warning_label.setStyleSheet("color: orange;")
+
+        if available_gb < 4:
+            # Allow conversion, but limit slider to actual RAM
+            self.ram_slider.setMinimum(1)
+            self.ram_slider.setMaximum(available_gb)
+            self.ram_slider.setValue(available_gb)
+            self.ram_warning_label.setText(
+                "⚠ Low available RAM (<4GB). Conversion may be slow or unstable."
+            )
+            self.ram_warning_label.show()
+        else:
+            self.ram_slider.setMinimum(4) 
+            self.ram_slider.setMaximum(available_gb)
+            self.ram_slider.setValue(min(32, available_gb))
+            self.ram_warning_label.hide()
+
+        def update_ram_label(value):
+            self.ram_label.setText(f"Of available system memory: {value} GB")
+
+        self.ram_slider.valueChanged.connect(update_ram_label)
+        update_ram_label(self.ram_slider.value())
+
         self.safety_factor_spin = QDoubleSpinBox()
         self.safety_factor_spin.setRange(0.1, 0.95)
         self.safety_factor_spin.setSingleStep(0.05)
         self.safety_factor_spin.setDecimals(2)
         self.safety_factor_spin.setValue(0.75)
-        self.safety_factor_spin.setSuffix(" × of available RAM")
+        self.safety_factor_spin.setSuffix(" × of selected RAM")
 
         self.compression_spin = QSpinBox()
         self.compression_spin.setRange(1, 22)
@@ -150,6 +184,11 @@ class ConverterGUI(QWidget):
         layout.addSpacing(10)
         layout.addWidget(QLabel("Storage type"))
         layout.addWidget(self.storage_select)
+
+        layout.addSpacing(10)
+        layout.addWidget(self.ram_label)
+        layout.addWidget(self.ram_slider)
+        layout.addWidget(self.ram_warning_label)
 
         safety_compression_hstack = QHBoxLayout()
         safety_vstack = QVBoxLayout()
@@ -232,9 +271,12 @@ class ConverterGUI(QWidget):
             return
 
         mode = self.mode_select.currentText()
+        selected_ram_gb = self.ram_slider.value()
+        memory_limit_bytes = selected_ram_gb * 1_000_000_000
         
         # Disable controls during conversion
         self.run_button.setEnabled(False)
+        self.ram_slider.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_label.setVisible(True)
         self.progress_bar.setValue(0)
@@ -247,7 +289,9 @@ class ConverterGUI(QWidget):
             mode,
             self.safety_factor_spin.value(),
             self.compression_spin.value(),
-            self.storage_select.currentData()
+            self.storage_select.currentData(),
+            memory_limit_bytes,
+            self.system
         )
         
         # Connect signals
@@ -276,6 +320,7 @@ class ConverterGUI(QWidget):
         """Handle successful conversion completion"""
         # Re-enable controls
         self.run_button.setEnabled(True)
+        self.ram_slider.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.progress_label.setVisible(False)
         
@@ -306,6 +351,7 @@ class ConverterGUI(QWidget):
         """Handle conversion failure"""
         # Re-enable controls
         self.run_button.setEnabled(True)
+        self.ram_slider.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.progress_label.setVisible(False)
         

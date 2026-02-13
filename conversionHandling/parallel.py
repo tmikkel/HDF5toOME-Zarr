@@ -15,8 +15,9 @@ def parallel_conversion(
         target_chunks: tuple[int, int, int],
         safety_factor: float,
         system: SystemInfo,
+        memory_limit_bytes: int,
         compression_level: int,
-        memory_limit: int,
+        worker_limit: int,
         progress_levels: int,
         progress_callback=None,
         client=None,
@@ -37,7 +38,8 @@ def parallel_conversion(
                 safety_factor,
                 dtype_size,
                 system,
-                memory_limit,
+                memory_limit_bytes,
+                worker_limit,
                 parallel=True
             )
 
