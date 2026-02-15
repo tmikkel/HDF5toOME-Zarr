@@ -108,13 +108,13 @@ pip install -r requirements.txt
 
 ⸻
 
-5. Run on Interactive Compute Node (Recommended)
+5. Run on Interactive Compute Node
 
 Do not code on the login node.
 
-Request an interactive node via LSF:
+Switch to a interactive Compute Node (dynamically assigned by the system) by typing:
 
-bsub -Is -n 4 -R "rusage[mem=8GB]" bash
+linuxsh -X
 
 Then run:
 
