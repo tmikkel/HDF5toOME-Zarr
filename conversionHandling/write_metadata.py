@@ -7,7 +7,6 @@ def write_metadata(
         pyramid_levels: int,
         downsample_factor:int
 ):
-    # ===== ADD OME-ZARR METADATA =====
     print(f"{'='*60}")
     print("Adding OME-Zarr Metadata")
     print(f"{'='*60}")

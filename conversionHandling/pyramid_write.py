@@ -146,11 +146,6 @@ def pyramid_write(
 
         print(f"Finished level {level} in {(time.time() - level_start):.1f}s")
 
-
-    # ------------------------------------------------------------
-    # Main Pyramid Builder
-    # ------------------------------------------------------------
-
     print("="*60)
     print("Building OME-Zarr Multi-Resolution Pyramid (Block-Mean)")
     print("="*60)
